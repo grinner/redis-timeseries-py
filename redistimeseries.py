@@ -58,6 +58,35 @@ def decode_record(r):
     return res
 # end def
 
+def key_tester_keepall(test_list, parser, record, results):
+    data = parser(record["data"])
+    for test_key in test_list:
+        if test_key in data:
+            # overwrite the simple string with the parser data structure
+            record["data"] = data
+            results.append(record)
+            return
+# end def 
+
+def key_tester_keepsome(test_list, parser, record, results):
+    data = parser(record["data"])
+    subrecord = {}
+    for test_key in test_list:
+        if test_key in data:
+            # store the key explicitly
+            subrecord[test_key] = data[test_key]
+    if len(subrecord) > 0:
+        record["data"] = subrecord
+        results.append(record)
+# end def
+
+def keep_everything(parser, record, results):
+    data = parser(record["data"])
+    if len(data > 0):
+        record["data"] = data
+        results.append(record)
+# end def
+
 class RedisTimeSeries(object):
     def __init__(self, prefix, timestep, redis):
         """ prefix is a 
@@ -192,6 +221,9 @@ class RedisTimeSeries(object):
     def produce_result_general(self, record_grabber, result, key, range_begin, range_end):
         """Used once a set of keys bookending a time range of interest are
         found to append to the result list passed to the function
+        
+        This generalized version uses the callable record_grabber to decide
+        how to append the record to the list
         """
         # get the records
         r = self.redis.getrange(key, range_begin, range_end)
@@ -205,7 +237,7 @@ class RedisTimeSeries(object):
     # end def
 
     def fetch_range(self, begin_time, end_time):
-        """ Get all data begining and ending at times of interest
+        """ Get all data beginning and ending at times of interest
         
         return a list of strings of decoded data
         """
@@ -230,37 +262,9 @@ class RedisTimeSeries(object):
         # end def
         return res
     # end def
-    
-    def key_tester_keepall(test_list, parser, record, results):
-        data = parser(record["data"])
-        for test_key in test_list:
-            if test_key in data:
-                # overwrite the simple string with the parser data structure
-                record["data"] = data
-                results.append(record)
-                return
-    # end def 
-    
-    def key_tester_keepsome(test_list, parser, record, results):
-        data = parser(record["data"])
-        subrecord = {}
-        for test_key in test_list:
-            if test_key in data:
-                # store the key explicitly
-                subrecord[test_key] = data[test_key]
-        if len(subrecord) > 0:
-            record["data"] = subrecord
-            results.append(record)
-    # end def
-    
-    def keep_everything(parser, record, results):
-        data = parser(record["data"])
-        if len(data > 0):
-            record["data"] = data
-            results.append(record)
             
     def fetch_range_json(self, begin_time, end_time, test_list=[], keepall=True):
-        """ Get all data begining and ending at times of interest
+        """ Get all data beginning and ending at times of interest
         
         return a list of dictionaries of decoded data based on a test list of
         keys.  
@@ -275,9 +279,9 @@ class RedisTimeSeries(object):
     
         if len(test_list) > 0:
             # we want every data point in the range
-            record_grabber = partial(self.keep_everything, json.loads)
+            record_grabber = partial(keep_everything, json.loads)
         else:
-            key_tester = self.key_tester_keepall if keepall else self.key_tester_keepsome
+            key_tester = key_tester_keepall if keepall else key_tester_keepsome
             record_grabber = partial(key_tester, test_list, json.loads)
         
         producer = partial(produce_result_general, record_grabber)
