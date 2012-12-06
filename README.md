@@ -1,4 +1,7 @@
 Python port of redis-timeseries https://github.com/antirez/redis-timeseries
+
+Uses redis-py https://github.com/andymccurdy/redis-py
+
 See the example.  
 
     >>> from redis import Redis
